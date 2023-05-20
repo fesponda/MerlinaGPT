@@ -12,11 +12,12 @@ from langchain.text_splitter import *
 import streamlit as st
 
 
+
 appOn=True
 if appOn:
 	INDEXGPTDIR="./"
 	DATOSGPTDIR="/Users/fesponda/Morgana/gpt/datos/"
-	os.environ["OPENAI_API_KEY"] == st.secrets["OPENAI_API_KEY"]
+	os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 	#os.environ["OPENAI_API_KEY"] = LLAVE
 
 else:
