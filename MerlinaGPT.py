@@ -88,7 +88,7 @@ def qryGPT(pregunta):
 	#	st.session_state['query_engine']=getqueryQA(st.session_state['index'])
 	response=st.session_state['query_engine'].query(pregunta)
 	r=str(response.response).strip().strip('.')
-	st.text(f"""{r}""")
+	st.write(f"""{r}""")
 
 
 
@@ -106,7 +106,7 @@ if (prev_qry != valor):
 	try:
 		qryGPT(st.session_state.pregunta)
 	except:
-		st.text("intente de nuevo")
+		st.write("intente de nuevo")
 #st.button("quibo",on_click=pru)
 
 
