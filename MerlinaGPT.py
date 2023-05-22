@@ -64,14 +64,13 @@ def construct_index(reIndex=False):
 def getqueryQA(index):
 	QA_PROMPT_TMPL = (
 	"Considerando la informacion de contexto a continuacion. \n"
-	"---------------------\n"
-	"{context_str}"
-	"\n---------------------\n"   
-	"por favor contesta la siguiente pregunta: {query_str}\n"
-	"primero analiza todos los datos y luego elabora la respuesta"
-	"resume la respuesta en 50 palabras o menos"
-	"contesta en español"
-	"Contesta 'no tengo la respuesta a esa pregunta. Por favor contacta a uno de nuestros asesores' si la respuesta no en el contexto"
+    "---------------------\n"
+    "{context_str}"
+    "\n---------------------\n"   
+    "por favor contesta la siguiente pregunta: {query_str}\n"
+    "resume la respuesta en 50 palabras o menos"
+    "contesta en español"
+    "Si la respuesta no esta en el contexto responde 'no tengo la respuesta a esa pregunta. Por favor contacta a uno de nuestros asesores' "
 
 	)
 	QA_PROMPT = QuestionAnswerPrompt(QA_PROMPT_TMPL)
