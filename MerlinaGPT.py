@@ -62,23 +62,23 @@ def construct_index(reIndex=False):
     return index
 
 def getqueryQA(index):
-	QA_PROMPT_TMPL = (
-	"Considerando la informacion de contexto a continuacion. \n"
+    QA_PROMPT_TMPL = (
+    "Considerando la informacion de contexto a continuacion. \n"
     "---------------------\n"
     "{context_str}"
     "\n---------------------\n"   
     "por favor contesta la siguiente pregunta: {query_str}\n"
-    "resume la respuesta en 50 palabras o menos"
-    "contesta en español"
-    "Si la respuesta no esta en el contexto responde 'no tengo la respuesta a esa pregunta. Por favor contacta a uno de nuestros asesores' "
+    "Si la respuesta esta en el contexto contesta en 50 palabras o menos\n"
+    "si la pregunta es en general de hipotecas y la respuesta no esta en el contexto, utiliza otra información \n"
+    "si la pregunta no es en general de hipotecas y la respuesta no esta en el contexto responde 'no tengo la respuesta a esa pregunta. Por favor contacta a uno de nuestros asesores'\n"
+    "contesta en español\n"   )
+    QA_PROMPT = QuestionAnswerPrompt(QA_PROMPT_TMPL)
 
-	)
-	QA_PROMPT = QuestionAnswerPrompt(QA_PROMPT_TMPL)
+    query_engine = index.as_query_engine(
+        text_qa_template=QA_PROMPT
+    )
+    return query_engine
 
-	query_engine = index.as_query_engine(
-	    text_qa_template=QA_PROMPT
-	)
-	return query_engine
 
 def qryGPT(pregunta):
 	#if 'index' not in st.session_state:
