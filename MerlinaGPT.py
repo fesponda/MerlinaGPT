@@ -1,19 +1,14 @@
 import openai
 import os
 import pandas as pd
-from llama_index import StorageContext, load_index_from_storage
-from llama_index import  GPTVectorStoreIndex, SimpleDirectoryReader,PromptHelper,LLMPredictor
-from llama_index import QuestionAnswerPrompt, LangchainEmbedding
-from llama_index.node_parser import SimpleNodeParser
-from llama_index.indices.service_context import ServiceContext
-from langchain.chat_models import ChatOpenAI
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.text_splitter import *
+from scipy.spatial.distance import cosine
+
+import json
+import time
 import streamlit as st
 
-
-
 appOn=True
+
 if appOn:
 	INDEXGPTDIR="./"
 	DATOSGPTDIR="/Users/fesponda/Morgana/gpt/datos/"
@@ -21,91 +16,130 @@ if appOn:
 	#os.environ["OPENAI_API_KEY"] = LLAVE
 
 else:
-	INDEXGPTDIR="/Users/fesponda/Morgana/gpt/code/"
-	DATOSGPTDIR="/Users/fesponda/Morgana/gpt/datos/"
-	os.environ["OPENAI_API_KEY"] = LLAVE
+    INDEXGPTDIR="/Users/fesponda/Morgana/gpt/code/"
+    DATOSGPTDIR="/Users/fesponda/Morgana/gpt/datos/"
+    openai.api_key = LLAVE
 
-def construct_index(reIndex=False):
-    if reIndex:
-            #embed_model = LangchainEmbedding(
-        #    OpenAIEmbeddings(
-        #        query_model_name='text-embedding-ada-002'
-        #    )
-        #)
-        embed_model = LangchainEmbedding(OpenAIEmbeddings(openai_api_key=LLAVE))
-        llm = ChatOpenAI(model_name='gpt-3.5-turbo', max_tokens=1000) #era jala con 256 para FAQ
-        llm_predictor = LLMPredictor(llm=llm)
-        chunk_len=1000# con chunklen muy chico empieza a mezclar respuestas!!!
-        chunk_overlap=20
-        splitter = TokenTextSplitter(chunk_size=chunk_len, chunk_overlap=chunk_overlap)
-        node_parser = SimpleNodeParser(
-             text_splitter=splitter, include_extra_info=True, include_prev_next_rel=False
-        )
-        prompt_helper = PromptHelper.from_llm_predictor(
-             llm_predictor=llm_predictor,
-        )
-        service_context = ServiceContext.from_defaults(
-             llm_predictor=llm_predictor,
-             prompt_helper=prompt_helper,
-             embed_model=embed_model,
-             node_parser=node_parser, # con esto mal no encuentra las respuestas en un FAQ
-        )
-        documents = SimpleDirectoryReader(
-            input_dir=DATOSGPTDIR).load_data()
-        index = GPTVectorStoreIndex.from_documents(documents,service_context=service_context)
-        index.storage_context.persist(INDEXGPTDIR)
-    else:
-        # rebuild storage context
-        storage_context = StorageContext.from_defaults(persist_dir=INDEXGPTDIR)
-        # load index
-        index = load_index_from_storage(storage_context)
-    return index
 
-def getqueryQA(index):
-    QA_PROMPT_TMPL = (
-    "Considerando la informacion de contexto a continuacion. \n"
-    "---------------------\n"
-    "{context_str}"
-    "\n---------------------\n"   
-    "por favor contesta la siguiente pregunta: {query_str}\n"
-    "Si la respuesta esta en el contexto contesta en 50 palabras o menos\n"
-    "si la pregunta es en general de hipotecas y la respuesta no esta en el contexto, utiliza otra información \n"
-    "si la pregunta no es en general de hipotecas y la respuesta no esta en el contexto responde 'no tengo la respuesta a esa pregunta. Por favor contacta a uno de nuestros asesores'\n"
-    "contesta en español\n"   )
-    QA_PROMPT = QuestionAnswerPrompt(QA_PROMPT_TMPL)
-
-    query_engine = index.as_query_engine(
-        text_qa_template=QA_PROMPT
+def get_completion(prompt, model="gpt-3.5-turbo"): # Andrew mentioned that the prompt/ completion paradigm is preferable for this class
+    messages = [{"role": "user", "content": prompt}]
+    response = openai.ChatCompletion.create(
+        model=model,
+        messages=messages,
+        temperature=0, # this is the degree of randomness of the model's output
     )
-    return query_engine
+    return response.choices[0].message["content"]
+
+def getChunks(doc_store,query='',mix=False,numChunks=2,forward=0,back=0):
+    #doc_store has all the data and embeddings, mix is whether to allow chunks from diff documentos, forward and back to includ adyacent chuncks
+    res=[]
+    allDistances=[]
+    for doc in doc_store:
+        alld,r=findclosest(doc_store,doc,query)
+        res+=[r] # the top from each document
+        allDistances+=alld #all distances
+    sList=sorted(allDistances,key=lambda x:x[1])
+    #retrieve the closest numChunks from same document
+    topDoc=sList[0][2]
+    context=""
+    chunks=0
+    for i,x in enumerate(sList):
+        if x[2]==topDoc and not mix:
+            context+=doc_store[topDoc][x[0]]['text']
+            chunks+=1
+        elif mix:
+            context+=doc_store[x[2]][x[0]]['text']
+            chunks+=1
+        if chunks>=numChunks:
+            break
+    return context
+        
+def findclosest(documents,name,d1):
+    documents=documents[name]
+    mindist=1000
+    resDoc=d1
+    allDistances=[]
+    for dockey in documents:
+        if d1 != documents[dockey]['vector']:
+            distance=cosine(documents[dockey]['vector'],d1)
+            allDistances+=[[dockey,distance,name]]
+            #print(distance)
+            if distance<mindist:
+                mindist=distance
+                resDoc=dockey
+    return allDistances,[resDoc,mindist,name]
+
+def embedding_from_string(input: str, model: str) -> list:
+    response = openai.Embedding.create(input=input, model=model)
+    embedding = response["data"][0]["embedding"]
+    return embedding
 
 
-def qryGPT(pregunta):
-	#if 'index' not in st.session_state:
-	#	st.session_state['index']=construct_index(reIndex=False)
-	#if 'query_engine' not in st.session_state:
-	#	st.session_state['query_engine']=getqueryQA(st.session_state['index'])
-	response=st.session_state['query_engine'].query(pregunta)
-	r=str(response.response).strip().strip('.')
-	st.write(f"""{r}""")
+def createIndex(reIndex=False):
+    if reIndex:
+        doc_store={}
+        onlyfiles = [f for f in listdir(DATOSGPTDIR) if isfile(join(DATOSGPTDIR, f)) and '.DS' not in f and ('.csv' in f or '.txt' in f) ]
+        for dataFile in onlyfiles:
+            print(dataFile)
+            doc_store=embedDocument(DATOSGPTDIR+dataFile,doc_store,lines=20,model="text-embedding-ada-002")
+        
+        # Serializing json
+        json_object = json.dumps(doc_store, indent=4)
+
+        # Writing to sample.json
+        with open(INDEXGPTDIR+"doc_store.json", "w") as outfile:
+            outfile.write(json_object)
+    else:
+        with open(INDEXGPTDIR+'doc_store.json') as json_file:
+            doc_store = json.load(json_file)
+    return doc_store
+
+
+
+
+def qryGPT(query_text):
+
+    pru=embedding_from_string(query_text,"text-embedding-ada-002")
+
+    context_text=getChunks(st.session_state['index'],pru,mix=False,numChunks=3)
+    prompt=f""" 
+
+        actúa de atención a cliente de startup morgana y experto en hipotecas, listo para responder preguntas basado en el siguiente contexto: 
+        ---------------------\n
+        {context_text}
+        ---------------------\n   
+            
+        Por favor contesta la siguiente pregunta: {query_text}\n
+        Si la respuesta esta en el contexto contesta en 50 palabras o menos\n
+        Si la pregunta es en general de (hipotecas o creditos) y la respuesta no esta en el contexto, utiliza otra información \n
+        Si la pregunta no es en general de (hipotecas  o creditos) y la respuesta no esta en el contexto responde 'no tengo la respuesta a esa pregunta. Por favor contacta a uno de nuestros asesores'\n
+        contesta en español  
+        """
+    response=get_completion(prompt)
+    r=response.strip().strip('.').replace("$","\$")
+    st.write(f"""{r}""")
 
 
 
 if 'index' not in st.session_state:
-	st.session_state['index']=construct_index(reIndex=False)
-if 'query_engine' not in st.session_state:
-	st.session_state['query_engine']=getqueryQA(st.session_state['index'])
+	st.session_state['index']=createIndex(reIndex=False)
 
 
 st.title("Pericles")
 valor=st.text_input("Pregunta", key="pregunta")
 prev_qry = ""
 if (prev_qry != valor):
-	prev_qry = valor
-	try:
-		qryGPT(st.session_state.pregunta)
-	except:
-		st.write("intente de nuevo")
+    prev_qry = valor
+    tries=0
+    done=False
+    while (tries<3 and not done):
+        try:
+            qryGPT(st.session_state.pregunta)
+            done=True
+        except:
+            #st.write("espere un momento porfavor")
+            time.sleep(3)
+        tries+=1
 #st.button("quibo",on_click=pru)
 
 
