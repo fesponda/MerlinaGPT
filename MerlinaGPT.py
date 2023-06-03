@@ -6,6 +6,8 @@ from scipy.spatial.distance import cosine
 import json
 import time
 import streamlit as st
+from tenacity import retry, wait_random_exponential, stop_after_attempt
+
 
 appOn=True
 
@@ -96,7 +98,7 @@ def createIndex(reIndex=False):
 
 
 
-
+from tenacity import retry, wait_random_exponential, stop_after_attempt
 def qryGPT(query_text):
 
     pru=embedding_from_string(query_text,"text-embedding-ada-002")
@@ -104,17 +106,22 @@ def qryGPT(query_text):
     context_text=getChunks(st.session_state['index'],pru,mix=False,numChunks=3)
     prompt=f""" 
 
-        actúa de atención a cliente de startup morgana y experto en hipotecas, listo para responder preguntas basado en el siguiente contexto: 
-        ---------------------\n
+        “Actúa como un asistente de atención a cliente de startup morgana y experto en hipotecas,
+        cuando sea oportuno sugiere que visiten nuestro cotizador en linea https://morgana.mx/mi_espacio/registra_cotizar/,
+        Responde preguntas basado en los siguiente contexto:
+        --------------------\n
         {context_text}
         ---------------------\n   
-            
+       
         Por favor contesta la siguiente pregunta: {query_text}\n
-        Si la respuesta esta en el contexto contesta en 50 palabras o menos\n
-        Si la pregunta es en general de (hipotecas o creditos) y la respuesta no esta en el contexto, utiliza otra información \n
+        Sugiere visiten el cotizador https://morgana.mx/mi_espacio/registra_cotizar/ cuando tenga preguntas de tasas, plazos, intereses y costos\n
+        Si la respuesta esta en el contexto contesta en 50 palabras o menos. No menciones la palabra contexto\n
+        Si la pregunta es en general de (hipotecas o creditos) y la respuesta no esta en el contexto, utiliza otra información. No menciones la palabra contexto  \n
         Si la pregunta no es en general de (hipotecas  o creditos) y la respuesta no esta en el contexto responde 'no tengo la respuesta a esa pregunta. Por favor contacta a uno de nuestros asesores'\n
-        contesta en español  
-        """
+        Contesta en español
+            
+            
+            """
     response=get_completion(prompt)
     r=response.strip().strip('.').replace("$","\$")
     st.write(f"""{r}""")
