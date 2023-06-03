@@ -103,7 +103,7 @@ def qryGPT(query_text):
 
     pru=embedding_from_string(query_text,"text-embedding-ada-002")
 
-    context_text=getChunks(st.session_state['index'],pru,mix=False,numChunks=3)
+    context_text=getChunks(st.session_state['index'],pru,mix=False,numChunks=2)
     prompt=f""" 
 
         “Actúa como un asistente de atención a cliente de startup morgana y experto en hipotecas,
@@ -115,7 +115,7 @@ def qryGPT(query_text):
        
         Por favor contesta la siguiente pregunta: {query_text}\n
         Sugiere visiten el cotizador https://morgana.mx/mi_espacio/registra_cotizar/ cuando tenga preguntas de tasas, plazos, intereses y costos\n
-        Si la respuesta esta en el contexto contesta en 50 palabras o menos. No menciones la palabra contexto\n
+        Si la respuesta esta en el contexto contesta en 30 palabras o menos. No menciones la palabra contexto\n
         Si la pregunta es en general de (hipotecas o creditos) y la respuesta no esta en el contexto, utiliza otra información. No menciones la palabra contexto  \n
         Si la pregunta no es en general de (hipotecas  o creditos) y la respuesta no esta en el contexto responde 'no tengo la respuesta a esa pregunta. Por favor contacta a uno de nuestros asesores'\n
         Contesta en español
